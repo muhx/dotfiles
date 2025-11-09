@@ -36,3 +36,7 @@ MANPATH="${XDG_DATA_HOME}/man:${MANPATH}"
 
 # Add go binaries to paths
 path=(${GOPATH}/bin ${path})
+
+# Add chktex
+path=(/usr/local/texlive/2025/bin/universal-darwin ${path})
+

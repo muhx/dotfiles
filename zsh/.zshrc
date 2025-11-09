@@ -4,3 +4,5 @@ for conffile in "${ZDOTDIR}"/rc.d/*; do
 done
 
 unset conffile
+
+. "$HOME/.local/share/../bin/env"
