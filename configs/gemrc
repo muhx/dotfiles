@@ -1,4 +1,0 @@
----
-gem: --no-wrapper --no-user-install --bindir ~/.local/bin
-
-# vi: ft=yaml

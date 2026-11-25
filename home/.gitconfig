@@ -1,0 +1,10 @@
+# Tracked in a PUBLIC repo. Identity and signing go in ~/.gitconfig.local.
+# Note: `git config --global` writes to THIS file; use `git config -f ~/.gitconfig.local`.
+[credential "https://github.com"]
+	helper =
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !gh auth git-credential
+[include]
+	path = ~/.gitconfig.local

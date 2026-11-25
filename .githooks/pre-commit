@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# This repo is public: reject staged content that looks like a secret or an email.
+# shortcut: pattern match only; switch to gitleaks if this misses or over-blocks.
+pattern='(API_?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*[[:space:]]*=[[:space:]]*["'\'']?[A-Za-z0-9_/+.-]{8,}'
+pattern+='|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}'
+pattern+='|BEGIN [A-Z ]*PRIVATE KEY|[A-Za-z0-9._%+-]+@(gmail|yahoo|outlook|hotmail|icloud)\.com'
+hits=$(git grep --cached -nIiE -e "$pattern" -- . | cut -d: -f1,2)
+if [[ -n $hits ]]; then
+  echo "commit blocked, possible secret or email at:" >&2
+  echo "$hits" >&2
+  exit 1
+fi
