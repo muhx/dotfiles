@@ -1,0 +1,3 @@
+# Per-machine settings and secrets. This file is NOT tracked.
+# export SOME_API_KEY=""
+# export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"

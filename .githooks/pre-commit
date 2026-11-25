@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# This repo is public: reject staged content that looks like a secret or an email.
+# shortcut: pattern match only; switch to gitleaks if this misses or over-blocks.
+secrets='(API_?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\\?["'\'']?[[:space:]]*[=:][[:space:]]*\\?["'\'']?[A-Za-z0-9_/+.-]{8,}'
+secrets+='|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}'
+secrets+='|BEGIN [A-Z ]*PRIVATE KEY'
+email='[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}'
+allowed=':(you@example\.com|git@github\.com)$'
+
+# git grep exits 0 on a match, 1 on none. Anything else blocks the commit.
+scan() {
+  local status=0
+  git grep --cached -nIiE "$@" -- . || status=$?
+  (( status <= 1 )) || { echo "secret scan failed; commit blocked" >&2; exit 1; }
+}
+found_secrets=$(scan -e "$secrets") || exit 1
+found_emails=$(scan -o -e "$email") || exit 1
+hits=$( { cut -d: -f1,2 <<<"$found_secrets"; grep -vE "$allowed" <<<"$found_emails" | cut -d: -f1,2; } | sed '/^$/d' | sort -u)
+if [[ -n $hits ]]; then
+  echo "commit blocked, possible secret or email at:" >&2
+  echo "$hits" >&2
+  exit 1
+fi
