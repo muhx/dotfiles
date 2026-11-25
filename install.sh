@@ -58,8 +58,19 @@ if ! cmp -s "$repo/iterm2/profile.json" "$iterm_dst"; then
   cp "$repo/iterm2/profile.json" "$iterm_dst"
 fi
 
-# Block commits that look like they contain secrets.
-if [[ -e $repo/.git ]]; then git -C "$repo" config core.hooksPath .githooks; fi
+# Block commits that look like they contain secrets. The hook is a copy, so that
+# checking out another branch cannot change what runs on your machine.
+if [[ -e $repo/.git ]]; then
+  if [[ $(git -C "$repo" config --local core.hooksPath || true) == .githooks ]]; then
+    git -C "$repo" config --local --unset core.hooksPath
+  fi
+  hooks="$(cd "$repo" && cd "$(git rev-parse --git-common-dir)" && pwd)/hooks"
+  mkdir -p "$hooks"
+  install -m 755 "$repo/.githooks/pre-commit" "$hooks/pre-commit"
+  if git -C "$repo" config core.hooksPath >/dev/null; then
+    echo "warning: core.hooksPath is set, so the secret check will not run" >&2
+  fi
+fi
 
 if (( ! link_only )); then
   # First interactive shell makes antidote clone the plugins.
