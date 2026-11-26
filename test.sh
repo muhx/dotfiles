@@ -23,6 +23,33 @@ run
 [[ $(find "$work/home/.dotfiles-backup" -type f -o -type l | wc -l) == "$count" ]] || fail "second run not idempotent"
 grep -q 'keep me' "$work/home/.zshrc.local" || fail ".zshrc.local overwritten"
 
+# ~/.gitconfig is a real file. A copy that keeps links as links, like actions/checkout makes,
+# must not be able to write into the repo.
+gc="$work/home/.gitconfig"
+shared="$work/repo/home/.gitconfig"
+isolated() { # $1: label. ~/.gitconfig is not a link and temporary global writes stay temporary
+  [[ -f $gc && ! -L $gc ]] || fail "$1: .gitconfig is a link"
+  mkdir -p "$work/checkout"
+  cp -P "$gc" "$work/checkout/.gitconfig"
+  HOME="$work/checkout" git config --global --add safe.directory /sim/repo
+  if grep -q /sim/repo "$shared" "$gc"; then fail "$1: temporary write leaked"; fi
+  rm -rf "$work/checkout"
+}
+isolated "upgrade of a real file"
+
+# Upgrade from the old linked layout.
+ln -sf "$shared" "$gc"
+run
+isolated "upgrade of a link"
+[[ $(HOME="$work/home" git config --global --includes user.name) == "Old Name" ]] || fail "identity lost on upgrade"
+
+# No earlier git config: re-runs, even from a second clone, never create a self-including local file.
+mkdir "$work/fresh"
+cp -R "$work/repo" "$work/clone2"
+for r in repo repo clone2; do HOME="$work/fresh" "$work/$r/install.sh" --link-only >/dev/null; done
+[[ ! -e $work/fresh/.gitconfig.local ]] || fail "managed .gitconfig copied to .gitconfig.local"
+HOME="$work/fresh" git config --global --includes --list >/dev/null || fail "fresh git config unreadable"
+
 # Secret hook: clean tree passes, a planted token is blocked.
 cd "$work/repo"
 git init -q .

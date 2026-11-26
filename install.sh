@@ -32,20 +32,32 @@ if (( ! link_only )); then
   [[ -d /Applications/iTerm.app ]] || brew install --cask iterm2
 fi
 
-# Keep an existing git identity: the old ~/.gitconfig becomes the local override.
-if [[ -f $HOME/.gitconfig && ! -L $HOME/.gitconfig && ! -e $HOME/.gitconfig.local ]]; then
-  cp "$HOME/.gitconfig" "$HOME/.gitconfig.local"
-  echo "copied old ~/.gitconfig to ~/.gitconfig.local"
+# ~/.gitconfig is a real file that includes the tracked one, never a link to it. Tools write
+# with `git config --global`, and actions/checkout copies a link as a link, so even its
+# temporary writes would land in this public repo.
+shared="$repo/home/.gitconfig"
+gitconfig="$HOME/.gitconfig"
+marker='# Managed by dotfiles install.sh. Untracked: git config --global writes here.'
+if ! { [[ -f $gitconfig && ! -L $gitconfig ]] && git config -f "$gitconfig" --get-all include.path | grep -xF "$shared" >/dev/null; }; then
+  # Keep an existing git identity: the old ~/.gitconfig becomes the local override.
+  # Never copy a file this script wrote, which could make the local file include itself.
+  if [[ -f $gitconfig && ! -L $gitconfig && ! -e $HOME/.gitconfig.local ]] && ! grep -qxF "$marker" "$gitconfig"; then
+    cp "$gitconfig" "$HOME/.gitconfig.local"
+    echo "copied old ~/.gitconfig to ~/.gitconfig.local"
+  fi
+  save "$gitconfig"
+  printf '%s\n' "$marker" > "$gitconfig"
+  git config -f "$gitconfig" include.path "$shared"
 fi
 
-# Every file under home/ is linked to the same path under $HOME.
+# Every other file under home/ is linked to the same path under $HOME.
 while IFS= read -r -d '' src; do
   dst="$HOME/${src#"$repo"/home/}"
   [[ -L $dst && $(readlink "$dst") == "$src" ]] && continue
   save "$dst"
   mkdir -p "$(dirname "$dst")"
   ln -s "$src" "$dst"
-done < <(find "$repo/home" -type f ! -name .DS_Store -print0)
+done < <(find "$repo/home" -type f ! -name .DS_Store ! -path "$shared" -print0)
 
 if [[ ! -e $HOME/.zshrc.local ]]; then
   (umask 077; cp "$repo/zshrc.local.example" "$HOME/.zshrc.local")

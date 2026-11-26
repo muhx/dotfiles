@@ -24,7 +24,7 @@ gh auth login
 
 4. In iTerm2: Settings > Profiles > "Source Mac" > Other Actions > Set as Default. Open a new window.
 
-Keep the clone where it is: files in `$HOME` are symlinks into it. Re-running `install.sh` is safe. Replaced files are moved to `~/.dotfiles-backup/`. Use `--link-only` to skip package and plugin setup.
+Keep the clone where it is: files in `$HOME` are symlinks into it. The exception is `~/.gitconfig`, a real untracked file that includes `home/.gitconfig`. Tools that run `git config --global` write there, not into this repo. A symlink would not do: `actions/checkout` on a self-hosted runner copies it as a symlink and writes through it. Re-running `install.sh` is safe. Replaced files are moved to `~/.dotfiles-backup/`. Use `--link-only` to skip package and plugin setup.
 
 On a machine that already has its own `.zshrc`, move any secrets and custom lines you need from the backup into `~/.zshrc.local`.
 
