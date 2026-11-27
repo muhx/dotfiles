@@ -16,14 +16,14 @@ zstyle ':zephyr:plugin:history' histfile "$HOME/.zsh_history"
 zstyle ':zephyr:plugin:history' histsize 10000
 zstyle ':zephyr:plugin:history' savehist 10000
 
-# Homebrew's antidote on macOS, a per-user clone on Linux (see install.sh).
+# Homebrew's antidote on macOS, a per-user clone on Linux (see rstuck.toml).
 () {
   local f
   for f in ${commands[brew]:+"$(brew --prefix)/opt/antidote/share/antidote/antidote.zsh"} \
            "$HOME/.local/share/antidote/antidote.zsh"; do
     [[ -r $f ]] && { source "$f"; return; }
   done
-  print -u2 "antidote not found; run ~/dotfiles/install.sh"
+  print -u2 "antidote not found; run ~/dotfiles/bootstrap.sh"
 }
 # Used by `conditional:` in .zsh_plugins.txt.
 is-macos() { [[ $OSTYPE == darwin* ]] }

@@ -1,101 +1,27 @@
 #!/usr/bin/env bash
-# Self-check against a throwaway HOME. Touches nothing in your real one.
+# All checks. Uses temporary directories only; touches nothing in your real HOME.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")" && pwd)
+
+# The installer: unit tests and end-to-end tests against a temporary HOME.
+cargo test --quiet --locked --manifest-path "$repo/Cargo.toml"
+bash -n "$repo/bootstrap.sh"
+
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-cp -R "$repo/." "$work/repo"
-rm -rf "$work/repo/.git"
-mkdir "$work/home"
-printf 'old zshrc\n' > "$work/home/.zshrc"
-printf '[user]\n\tname = Old Name\n' > "$work/home/.gitconfig"
+mkdir "$work/repo"
+for item in home iterm2 .githooks README.md export-iterm.sh; do cp -R "$repo/$item" "$work/repo/"; done
 fail() { echo "FAIL: $1" >&2; exit 1; }
-run() { HOME="$work/home" "$work/repo/install.sh" --link-only >/dev/null; }
 
-run
-[[ -L $work/home/.zshrc && -L $work/home/.config/starship.toml ]] || fail "not linked"
-[[ $(uname) == Darwin || ! -e $work/home/Library ]] || fail "iTerm2 profile copied on Linux"
-grep -q 'old zshrc' "$work"/home/.dotfiles-backup/*/.zshrc || fail "no backup"
-[[ $(HOME="$work/home" git config --global --includes user.name) == "Old Name" ]] || fail "git identity lost"
-[[ $(stat -c %a "$work/home/.zshrc.local" 2>/dev/null || stat -f %Lp "$work/home/.zshrc.local") == 600 ]] || fail ".zshrc.local mode"
-echo 'keep me' > "$work/home/.zshrc.local"
-count=$(find "$work/home/.dotfiles-backup" -type f -o -type l | wc -l)
-run
-[[ $(find "$work/home/.dotfiles-backup" -type f -o -type l | wc -l) == "$count" ]] || fail "second run not idempotent"
-grep -q 'keep me' "$work/home/.zshrc.local" || fail ".zshrc.local overwritten"
-
-# ~/.gitconfig is a real file. A copy that keeps links as links, like actions/checkout makes,
-# must not be able to write into the repo.
-gc="$work/home/.gitconfig"
-shared="$work/repo/home/.gitconfig"
-isolated() { # $1: label. ~/.gitconfig is not a link and temporary global writes stay temporary
-  [[ -f $gc && ! -L $gc ]] || fail "$1: .gitconfig is a link"
-  mkdir -p "$work/checkout"
-  cp -P "$gc" "$work/checkout/.gitconfig"
-  HOME="$work/checkout" git config --global --add safe.directory /sim/repo
-  if grep -q /sim/repo "$shared" "$gc"; then fail "$1: temporary write leaked"; fi
-  rm -rf "$work/checkout"
-}
-isolated "upgrade of a real file"
-
-# Upgrade from the old linked layout.
-ln -sf "$shared" "$gc"
-run
-isolated "upgrade of a link"
-[[ $(HOME="$work/home" git config --global --includes user.name) == "Old Name" ]] || fail "identity lost on upgrade"
-
-# No earlier git config: re-runs, even from a second clone, never create a self-including local file.
-mkdir "$work/fresh"
-cp -R "$work/repo" "$work/clone2"
-for r in repo repo clone2; do HOME="$work/fresh" "$work/$r/install.sh" --link-only >/dev/null; done
-[[ ! -e $work/fresh/.gitconfig.local ]] || fail "managed .gitconfig copied to .gitconfig.local"
-HOME="$work/fresh" git config --global --includes --list >/dev/null || fail "fresh git config unreadable"
-
-# Package lists. linux_packages runs with a fake os-release and as_root only records its
-# arguments, so nothing is installed. gh and curl are stubbed as already present.
-packages() { # $1: distro ID, $2: repo to read the lists from. Prints each root command.
-  echo "ID=$1" > "$work/os-release"
-  [[ $1 != rocky ]] || echo 'ID_LIKE="rhel centos fedora"' >> "$work/os-release"
-  bash -c '
-    set -euo pipefail
-    repo=$1
-    eval "$(sed -n "/^read_packages()/,/^}/p; /^linux_packages()/,/^}/p" "$repo/install.sh" |
-      sed "s|/etc/os-release|$2|")"
-    as_root() { echo "$*"; }
-    gh() { :; }
-    curl() { :; }
-    linux_packages
-  ' bash "$2" "$work/os-release"
-}
-installed() { packages "$1" "$work/repo" | sed -n 's/.* install //p' | grep -v '^-y epel-release$' | tr ' ' '\n'; }
-for distro in ubuntu debian rocky fedora; do
-  got=$(installed "$distro") || fail "$distro: package lists rejected"
-  for p in zsh git tar gzip tmux htop tree gcc; do grep -qx "$p" <<<"$got" || fail "$distro: $p not installed"; done
-done
-for p in curl ca-certificates libc6-dev; do
-  grep -qx "$p" <<<"$(installed ubuntu)" || fail "apt: $p not installed"
-  if grep -qx "$p" <<<"$(installed rocky)"; then fail "dnf: got $p"; fi
-done
-
-cp -R "$work/repo/packages" "$work/packages.orig"
-printf '# note\n\n  g++  # trailing comment\r\nlast-without-newline' > "$work/repo/packages/apt.txt"
-got=$(installed ubuntu)
-grep -qx 'g++' <<<"$got" && grep -qx last-without-newline <<<"$got" || fail "list syntax not parsed"
-# A bad or missing list stops the install before any root command runs.
-for bad in '--allow-unauthenticated' 'zsh-' 'two names' '*' 'x;id'; do
-  echo "$bad" > "$work/repo/packages/apt.txt"
-  if out=$(packages ubuntu "$work/repo" 2>/dev/null); then fail "accepted package name: $bad"; fi
-  [[ -z $out ]] || fail "ran a root command with bad name: $bad"
-done
-rm "$work/repo/packages/apt.txt"
-if packages ubuntu "$work/repo" >/dev/null 2>&1; then fail "missing list ignored"; fi
-cp "$work/packages.orig/apt.txt" "$work/repo/packages/apt.txt"
+# The whole tree, as it would be committed, passes the secret check.
+cp -R "$repo/." "$work/all"
+rm -rf "$work/all/.git" "$work/all/target"
+(cd "$work/all" && git init -q . && git add -A && .githooks/pre-commit) || fail "hook rejects clean tree"
 
 # Secret hook: clean tree passes, a planted token is blocked.
 cd "$work/repo"
 git init -q .
 git add -A
-.githooks/pre-commit || fail "hook rejects clean tree"
 printf 'export DEMO_API_%s=abcdefgh12345678\n' KEY > planted
 git add planted
 if .githooks/pre-commit 2>/dev/null; then fail "hook missed a secret"; fi
@@ -111,12 +37,6 @@ for sample in '"API_%s": "abcdefgh12345678"' 'someone@%s.io'; do
   if .githooks/pre-commit 2>/dev/null; then fail "hook missed: $sample"; fi
   git rm -qf planted
 done
-
-# The installed hook is a copy, and the old hooksPath setting is removed.
-git config core.hooksPath .githooks
-run
-cmp -s .githooks/pre-commit .git/hooks/pre-commit && [[ -x .git/hooks/pre-commit ]] || fail "hook not installed"
-if git config --local core.hooksPath >/dev/null; then fail "hooksPath still set"; fi
 
 # Export keeps only allowlisted settings. `defaults` is stubbed with a fake profile.
 mkdir "$work/bin"
