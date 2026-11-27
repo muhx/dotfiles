@@ -1,0 +1,50 @@
+# What `rstuck apply` manages besides packages (packages/, Brewfile) and config files (home/).
+# This repo is PUBLIC: no secrets, tokens or private hostnames here.
+# `run` is a bash script that runs as you, so review changes to this file like code.
+# `os` takes "linux" and "macos". Leave it out for both. `~/` means your home directory.
+
+# [[tool]]: installed per user. `run` is skipped when `command` is already on PATH, or when
+# the `creates` path exists. Set exactly one of the two. Tools run in the order listed.
+# On Linux these are here because distro versions are too old or missing.
+
+[[tool]]
+name = "antidote"
+os = ["linux"]
+creates = "~/.local/share/antidote"
+run = 'git clone -q --depth 1 https://github.com/mattmc3/antidote "$HOME/.local/share/antidote"'
+
+# `fzf --zsh` needs fzf 0.48+, newer than Debian 12 and Ubuntu 22.04 ship.
+[[tool]]
+name = "fzf"
+os = ["linux"]
+creates = "~/.local/bin/fzf"
+run = '''
+dir="$HOME/.local/share/fzf"
+[ -d "$dir" ] || git clone -q --depth 1 https://github.com/junegunn/fzf "$dir"
+[ -x "$dir/bin/fzf" ] || "$dir/install" --bin
+ln -sf "$dir/bin/fzf" "$HOME/.local/bin/fzf"
+'''
+
+[[tool]]
+name = "starship"
+os = ["linux"]
+command = "starship"
+run = 'curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b "$HOME/.local/bin"'
+
+[[tool]]
+name = "zoxide"
+os = ["linux"]
+command = "zoxide"
+run = 'curl -fsSL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh -s -- --bin-dir "$HOME/.local/bin"'
+
+# [[seed]]: created once with mode 600, then never touched.
+[[seed]]
+from = "zshrc.local.example"
+to = "~/.zshrc.local"
+
+# [[copy]]: copied (not linked) whenever it differs. The replaced file is backed up.
+# iTerm2 may rewrite its profile, and backups must stay outside DynamicProfiles.
+[[copy]]
+os = ["macos"]
+from = "iterm2/profile.json"
+to = "~/Library/Application Support/iTerm2/DynamicProfiles/source-terminal.json"
