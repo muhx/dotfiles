@@ -5,8 +5,10 @@ export PATH="$HOME/.local/bin:$PATH"
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
-export CFLAGS="-I$(brew --prefix)/include"
-export LDFLAGS="-L$(brew --prefix)/lib"
+if (( $+commands[brew] )); then
+  export CFLAGS="-I$(brew --prefix)/include"
+  export LDFLAGS="-L$(brew --prefix)/lib"
+fi
 
 source "$HOME/.config/zsh/source-terminal.zsh"
 

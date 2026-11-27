@@ -1,0 +1,1 @@
+# Rocky and other dnf distros only. install.sh adds curl itself if it is missing.

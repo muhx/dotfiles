@@ -1,0 +1,9 @@
+# All Linux servers: names that are the same on apt and dnf. One per line.
+zsh
+git
+tar
+gzip
+tmux
+htop
+tree
+gcc
