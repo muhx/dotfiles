@@ -36,16 +36,37 @@ as_root() {
   fi
 }
 
-# System packages for Linux. Tools that distros ship too old (fzf, starship, zoxide,
-# antidote) are installed per user under ~/.local instead, see linux_user_tools.
+# Print the package names in packages/<name>.txt for each name given: one per line, # comments.
+# They reach a root package manager, so reject anything that is not a plain name. That covers
+# options, and a trailing "-", which makes apt-get install remove the package.
+read_packages() {
+  local list file line
+  for list in "$@"; do
+    file="$repo/packages/$list.txt"
+    [[ -r $file ]] || { echo "missing package list: $file" >&2; return 1; }
+    while read -r line || [[ -n $line ]]; do
+      line=${line%%#*}
+      line=${line%"${line##*[![:space:]]}"}
+      [[ -n $line ]] || continue
+      [[ $line =~ ^[A-Za-z0-9]([A-Za-z0-9+._-]*[A-Za-z0-9+])?$ ]] ||
+        { echo "bad package name in $file: $line" >&2; return 1; }
+      echo "$line"
+    done < "$file"
+  done
+}
+
+# System packages for Linux, named in packages/. Tools that distros ship too old (fzf,
+# starship, zoxide, antidote) are installed per user under ~/.local instead, see linux_user_tools.
 linux_packages() {
-  local distro
+  local distro names pkgs
   distro=$(. /etc/os-release && echo " ${ID:-} ${ID_LIKE:-} ")
   case $distro in
     *" debian "* | *" ubuntu "*)
       local apt=(env DEBIAN_FRONTEND=noninteractive apt-get -yq)
+      names=$(read_packages common apt) || exit 1
+      pkgs=($names) # validated names: no spaces or glob characters
       as_root "${apt[@]}" update
-      as_root "${apt[@]}" install zsh git curl ca-certificates tar gzip tmux htop tree gcc libc6-dev
+      as_root "${apt[@]}" install "${pkgs[@]}"
       if ! command -v gh >/dev/null; then
         local key=/etc/apt/keyrings/githubcli-archive-keyring.gpg
         as_root mkdir -p -m 755 /etc/apt/keyrings
@@ -58,10 +79,11 @@ linux_packages() {
       fi
       ;;
     *" rhel "* | *" fedora "* | *" centos "*)
+      names=$(read_packages common dnf) || exit 1
+      pkgs=($names)
       # htop lives in EPEL. Fedora has no epel-release and does not need it.
       [[ $distro == *" fedora "* && $distro != *" rhel "* ]] || as_root dnf install -y epel-release
       # Rocky ships curl-minimal, which conflicts with the curl package: only add curl if absent.
-      local pkgs=(zsh git tar gzip tmux htop tree gcc)
       command -v curl >/dev/null || pkgs+=(curl)
       as_root dnf install -y "${pkgs[@]}"
       if ! command -v gh >/dev/null; then
