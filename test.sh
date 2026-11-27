@@ -14,9 +14,10 @@ run() { HOME="$work/home" "$work/repo/install.sh" --link-only >/dev/null; }
 
 run
 [[ -L $work/home/.zshrc && -L $work/home/.config/starship.toml ]] || fail "not linked"
+[[ $(uname) == Darwin || ! -e $work/home/Library ]] || fail "iTerm2 profile copied on Linux"
 grep -q 'old zshrc' "$work"/home/.dotfiles-backup/*/.zshrc || fail "no backup"
 [[ $(HOME="$work/home" git config --global --includes user.name) == "Old Name" ]] || fail "git identity lost"
-[[ $(stat -f %Lp "$work/home/.zshrc.local") == 600 ]] || fail ".zshrc.local mode"
+[[ $(stat -c %a "$work/home/.zshrc.local" 2>/dev/null || stat -f %Lp "$work/home/.zshrc.local") == 600 ]] || fail ".zshrc.local mode"
 echo 'keep me' > "$work/home/.zshrc.local"
 count=$(find "$work/home/.dotfiles-backup" -type f -o -type l | wc -l)
 run

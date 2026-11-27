@@ -18,7 +18,7 @@ ohmyzsh/ohmyzsh path:plugins/python
 ohmyzsh/ohmyzsh path:plugins/ruby
 ohmyzsh/ohmyzsh path:plugins/rails
 ohmyzsh/ohmyzsh path:plugins/brew
-ohmyzsh/ohmyzsh path:plugins/macos
+ohmyzsh/ohmyzsh path:plugins/macos conditional:is-macos
 
 # Core zsh plugins
 zsh-users/zsh-completions kind:fpath path:src

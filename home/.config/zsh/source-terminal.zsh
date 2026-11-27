@@ -16,8 +16,18 @@ zstyle ':zephyr:plugin:history' histfile "$HOME/.zsh_history"
 zstyle ':zephyr:plugin:history' histsize 10000
 zstyle ':zephyr:plugin:history' savehist 10000
 
-source "$(brew --prefix)/opt/antidote/share/antidote/antidote.zsh"
-antidote load "$HOME/.zsh_plugins.txt"
+# Homebrew's antidote on macOS, a per-user clone on Linux (see install.sh).
+() {
+  local f
+  for f in ${commands[brew]:+"$(brew --prefix)/opt/antidote/share/antidote/antidote.zsh"} \
+           "$HOME/.local/share/antidote/antidote.zsh"; do
+    [[ -r $f ]] && { source "$f"; return; }
+  done
+  print -u2 "antidote not found; run ~/dotfiles/install.sh"
+}
+# Used by `conditional:` in .zsh_plugins.txt.
+is-macos() { [[ $OSTYPE == darwin* ]] }
+(( ${+functions[antidote]} )) && antidote load "$HOME/.zsh_plugins.txt"
 
 # belak completion calls ez-compinit's wrapper once. Do not let use-omz
 # initialize it again on the first prompt. Replay its earlier compdefs.
